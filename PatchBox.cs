@@ -53,7 +53,7 @@ namespace Transonic.Patch
         readonly Brush TITLECOLOR = Brushes.Black;
         readonly Font TITLEFONT = SystemFonts.DefaultFont;
         readonly int FRAMEWIDTH = 100;
-        readonly int NEWPANELBARHEIGHT = 20;
+        readonly int NEWPANELBARHEIGHT = 0;
 
         public PatchBox()
         {
@@ -67,7 +67,7 @@ namespace Transonic.Patch
             title = "Box " + boxNum.ToString();
             titleBar.Location = frame.Location;
             titleBar.Width = FRAMEWIDTH;
-            titleBar.Height = 40;
+            titleBar.Height = 25;
             nextPanelPos = titleBar.Bottom;
             frame.Height = nextPanelPos + NEWPANELBARHEIGHT;           //space at bottom of box for new panel bar
 

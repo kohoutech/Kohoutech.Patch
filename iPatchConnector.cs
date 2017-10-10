@@ -24,20 +24,21 @@ using System.Text;
 using System.Drawing;
 using System.Xml;
 
-using PatchWorker.Graph;
+//the model's data connector implements this interface so that the user events
+//on the patch line get passed back to the connector; subclassing the patch line
+//would mean the subclass would have to inherit from both this lib AND the model
+//which is why we use this interface instead
 
 namespace Transonic.Patch
 {
     public interface iPatchConnector
     {
-        void setLine(PatchLine line);
+        void setLine(PatchLine line);       //link the patch line view to the model's connector
+
+        //single clicks select the patch line, so they aren't passed to the model's connector
 
         void onDoubleClick(Point pos);
 
         void onRightClick(Point pos);
-
-        void loadFromXML(XmlNode lineNode);
-
-        void saveToXML(XmlWriter xmlWriter);
     }
 }

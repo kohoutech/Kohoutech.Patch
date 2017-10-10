@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Xml;
 
 namespace Transonic.Patch
@@ -29,156 +30,208 @@ namespace Transonic.Patch
     public class PatchLine
     {
         public PatchCanvas canvas;
-        public PatchPanel srcPanel;
-        public Point srcEnd;
+
+        public PatchPanel srcPanel;         //connections in view
         public PatchPanel destPanel;
+        public Point srcEnd;                //line's endpoints on the panels
         public Point destEnd;
+
         public iPatchConnector connector;       //connector in the backing model
 
-        public bool isSelected;
+        Color lineColor;                    //for rendering line
+        Color selectedColor;
+        float lineWidth;
+        GraphicsPath path;
 
-        readonly Pen CONNECTORCOLOR = new Pen(Color.Red, 2.0f);
-        readonly Pen SELECTEDCOLOR = new Pen(Color.Blue, 2.0f);
+        bool isSelected;                    
         
-        //for connecting panels by user
-        //new line starts at source panel's output jack, the input end follows the mouse until it is dropped on a target panel
-        public PatchLine(PatchCanvas _canvas, PatchPanel _srcPanel, Point _destEnd)
-        {
-            canvas = _canvas;
-            connectSourceJack(_srcPanel);
-            destPanel = null;
-            destEnd = _destEnd;
-            connector = null;
-            isSelected = false;
-        }
-
         //for reloading existing connections from a stored patch
         public PatchLine(PatchCanvas _canvas, PatchPanel srcPanel, PatchPanel destPanel)
         {
             canvas = _canvas;
             connectSourceJack(srcPanel);
             connectDestJack(destPanel);
+
+            //default appearance
+            lineColor = Color.Black;
+            selectedColor = Color.Red;
+            lineWidth = 2.0f;
+
+            path = new GraphicsPath();
+            updatePath();
+
             isSelected = false;
         }
 
+//- parameters ----------------------------------------------------------------
+
+        //these can be set by the user
+        public Color LineColor
+        {
+            get { return lineColor; }
+            set { lineColor = value; }
+        }
+
+        public Color SelectedColor
+        {
+            get { return selectedColor; }
+            set { selectedColor = value; }
+        }
+        
 //- connections ---------------------------------------------------------------
 
         public void connectSourceJack(PatchPanel _srcPanel)
         {
             srcPanel = _srcPanel;
-            srcEnd = srcPanel.getConnectionPoint();
-            srcPanel.connectLine(this);            
+            srcEnd = srcPanel.ConnectionPoint;
+            srcPanel.connectLine(this);                     //connect line & source panel in view     
         }
 
         public void connectDestJack(PatchPanel _destPanel)
         {
             destPanel = _destPanel;
-            destEnd = destPanel.getConnectionPoint();
-            destPanel.connectLine(this);                            //connect line & dest panel in view            
-            connector = srcPanel.makeConnection(destPanel);                     //connect panels in model
-            connector.setLine(this);
+            destEnd = destPanel.ConnectionPoint;
+            destPanel.connectLine(this);                            //connect line & dest panel in view
+            
+            connector = srcPanel.makeConnection(destPanel);         //connect panels in model, get model connector
+            if (connector != null)
+            {
+                connector.setLine(this);                                //and set this as connector's view
+            }
         }
 
         public void disconnect()
         {
             if (srcPanel != null)
             {
-                srcPanel.breakConnection(destPanel);                        //disconnect panels in model
+                srcPanel.breakConnection(destPanel);                 //disconnect panels in model
                 srcPanel.disconnectLine(this);
+                srcPanel = null;
             }
-            srcPanel = null;
-            if (destPanel != null) destPanel.disconnectLine(this);
-            destPanel = null;                                           //disconnect line from both panels in view
+
+            if (destPanel != null)
+            {
+                destPanel.disconnectLine(this);
+                destPanel = null;                                           //disconnect line from both panels in view
+            }
+            path = null;
         }
 
-        public void setSourceEndPos(Point _srcEnd)
+        //these are called if the source / dest panels are moved and the line's path needs to be updated
+        public Point SourceEndPos
         {
-            srcEnd = _srcEnd;
+            set
+            {
+                srcEnd = value;
+                updatePath();
+            }
         }
 
-        public void setDestEndPos(Point _destEnd)
+        public Point DestEndPos
         {
-            destEnd = _destEnd;
+            set
+            {
+                destEnd = value;
+                updatePath();
+            }
+        }
+
+        public void updatePath() 
+        {
+            path.Reset();
+            path.AddLine(srcEnd, destEnd);
         }
 
 //- displaying ----------------------------------------------------------------
 
         public bool hitTest(Point p)
         {
-            //bounding box
-            if (p.X < (srcEnd.X < destEnd.X ? srcEnd.X : destEnd.X) ||
-                p.X > (srcEnd.X > destEnd.X ? srcEnd.X : destEnd.X) ||
-                p.Y < (srcEnd.Y < destEnd.Y ? srcEnd.Y : destEnd.Y) ||
-                p.Y > (srcEnd.Y > destEnd.Y ? srcEnd.Y : destEnd.Y))
-                return false;
-
-            //if inside bounding box, calc distance from point to line
-            int lineX = destEnd.X - srcEnd.X;
-            int lineY = destEnd.Y - srcEnd.Y;
-            int pointX = srcEnd.X - p.X;
-            int pointY = srcEnd.Y - p.Y;
-            double lineLen = Math.Sqrt(lineX * lineX + lineY + lineY);
-            double projLine = (lineX * pointY - lineY * pointX);
-            double dist = Math.Abs(projLine / lineLen);
-            return (dist < 2.0);
+            Pen linePen = new Pen(lineColor, lineWidth);
+            return path.IsOutlineVisible(p, linePen);
         }
 
-        public void setSelected(bool _selected)
+        public bool Selected 
         {
-            isSelected = _selected;
+            get { return isSelected; }              //don't know if get is needed?
+            set { isSelected = value; }
         }
 
 //- user input ----------------------------------------------------------------
 
+        //pass user events back to the model's data connector
+
         public void onDoubleClick(Point pos)
         {
-            connector.onDoubleClick(pos);
+            if (connector != null)
+            {
+                connector.onDoubleClick(pos);
+            }
         }
 
         public void onRightClick(Point pos)
         {
-            connector.onRightClick(pos);
+            if (connector != null)
+            {
+                connector.onRightClick(pos);
+            }
         }
 
 //- painting ------------------------------------------------------------------
 
         public void paint(Graphics g)
         {
-            g.DrawLine(isSelected ? SELECTEDCOLOR : CONNECTORCOLOR, srcEnd, destEnd);
+            using (Pen linePen = new Pen(isSelected ? selectedColor : lineColor, lineWidth))
+            {
+                g.DrawPath(linePen, path);
+            }
         }
 
 //- persistance ---------------------------------------------------------------
 
+        //get source & dest box nums from XML file and get the matching boxes from the canvas
+        //then get the panel nums from XML and get the matching panels from the boxes
+        //having the source & dest panels. create a new line between them
+        //this will create a connection in the backing model, call loadFromXML() on it with XML node to set its properties
         public static PatchLine loadFromXML(PatchCanvas canvas, XmlNode lineNode)
         {
-            int srcBoxNum = Convert.ToInt32(lineNode.Attributes["sourcebox"].Value);
-            int srcPanelNum = Convert.ToInt32(lineNode.Attributes["sourcepanel"].Value);
-            int destBoxNum = Convert.ToInt32(lineNode.Attributes["destbox"].Value);
-            int destPanelNum = Convert.ToInt32(lineNode.Attributes["destpanel"].Value);
-
             PatchLine line = null;
-            PatchBox sourceBox = canvas.findPatchBox(srcBoxNum);
-            PatchBox destBox = canvas.findPatchBox(destBoxNum);
-            if (sourceBox != null && destBox != null)
+            try
             {
-                PatchPanel sourcePanel = sourceBox.findPatchPanel(srcPanelNum);
-                PatchPanel destPanel = destBox.findPatchPanel(destPanelNum);
+                int srcBoxNum = Convert.ToInt32(lineNode.Attributes["sourcebox"].Value);
+                int srcPanelNum = Convert.ToInt32(lineNode.Attributes["sourcepanel"].Value);
+                int destBoxNum = Convert.ToInt32(lineNode.Attributes["destbox"].Value);
+                int destPanelNum = Convert.ToInt32(lineNode.Attributes["destpanel"].Value);
 
-                line = new PatchLine(canvas, sourcePanel, destPanel);
-                line.connector.loadFromXML(lineNode);
+                PatchBox sourceBox = canvas.findPatchBox(srcBoxNum);
+                PatchBox destBox = canvas.findPatchBox(destBoxNum);
+                if (sourceBox != null && destBox != null)
+                {
+                    PatchPanel sourcePanel = sourceBox.findPatchPanel(srcPanelNum);
+                    PatchPanel destPanel = destBox.findPatchPanel(destPanelNum);
+
+                    if (sourcePanel != null && destPanel != null)
+                    {
+                        line = new PatchLine(canvas, sourcePanel, destPanel);                        
+                    }
+                }
+
             }
+            catch (Exception e)
+            {
+                throw new PatchLoadException();
+            }
+
             return line;
         }
 
         public void saveToXML(XmlWriter xmlWriter)
         {
+            //save patch line attributes
             xmlWriter.WriteStartElement("connection");
             xmlWriter.WriteAttributeString("sourcebox", srcPanel.patchbox.boxNum.ToString());
             xmlWriter.WriteAttributeString("sourcepanel", srcPanel.panelNum.ToString());
             xmlWriter.WriteAttributeString("destbox", destPanel.patchbox.boxNum.ToString());
             xmlWriter.WriteAttributeString("destpanel", destPanel.panelNum.ToString());
-
-            connector.saveToXML(xmlWriter);         //save model attributes
 
             xmlWriter.WriteEndElement();
         }

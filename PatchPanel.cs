@@ -40,9 +40,12 @@ namespace Transonic.Patch
         public int panelNum;
 
         public PatchBox patchbox;
-        public Rectangle frame;
         public List<PatchLine> connectors;
         public CONNECTIONTYPE connType;
+
+        public Rectangle frame;
+        public int frameWidth;
+        public int frameHeight;
 
         public PatchPanel(PatchBox box)
         {
@@ -50,9 +53,17 @@ namespace Transonic.Patch
             panelNum = ++panelCount;
             patchbox = box;
 
-            frame = new Rectangle(0, 0, patchbox.frame.Width, 40);
+            updateFrame(20, patchbox.frame.Width);
+
             connectors = new List<PatchLine>();
             connType = CONNECTIONTYPE.NEITHER;
+        }
+
+        public void updateFrame(int height, int width)
+        {
+            frameHeight = height;
+            frameWidth = width;
+            frame = new Rectangle(0, 0, frameWidth, frameHeight);
         }
 
         public virtual void setPos(int xOfs, int yOfs)
@@ -62,16 +73,16 @@ namespace Transonic.Patch
             {
                 if (connType == CONNECTIONTYPE.SOURCE)
                 {
-                    connector.setSourceEndPos(getConnectionPoint());
+                    connector.SourceEndPos = this.ConnectionPoint;
                 }
                 if (connType == CONNECTIONTYPE.DEST)
                 {
-                    connector.setDestEndPos(getConnectionPoint());
+                    connector.DestEndPos = this.ConnectionPoint;
                 }
             }
         }
 
-        public bool hitTest(Point p)
+        public virtual bool hitTest(Point p)
         {
             return (frame.Contains(p));
         }
@@ -89,9 +100,9 @@ namespace Transonic.Patch
         }
 
         //default connection point - dead center of the frame
-        public virtual Point getConnectionPoint()
+        public virtual Point ConnectionPoint
         {
-            return new Point(frame.Left + frame.Width / 2, frame.Top + frame.Height / 2);
+            get { return new Point(frame.Left + frame.Width / 2, frame.Top + frame.Height / 2); }
         }
 
         public virtual void connectLine(PatchLine line)
@@ -121,6 +132,23 @@ namespace Transonic.Patch
         }
 
 //- user input ----------------------------------------------------------------
+
+        public virtual bool canTrackMouse()
+        {
+            return false;
+        }
+
+        public virtual void onMouseDown(Point pos)
+        {
+        }
+        
+        public virtual void onMouseMove(Point pos)
+        {
+        }
+        
+        public virtual void onMouseUp(Point pos)
+        {
+        }
 
         public virtual void onClick(Point pos)
         {

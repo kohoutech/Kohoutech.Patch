@@ -23,31 +23,37 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Drawing;
-using PatchWorker.Graph;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Drawing.Drawing2D;
 
 namespace Transonic.Patch
 {
-    public class PatchCanvas : UserControl
+    public class PatchCanvas : Control
     {
-        public IPatchView patchwin;
-        List<PatchBox> boxList;
-        List<PatchLine> lineList;
+        public IPatchView patchwin;         //the window that holds this canvas
+        List<PatchBox> boxList;             //the boxes on the canvas
+        List<PatchLine> lineList;           //the connector lines on the canvas
 
-        PatchBox selectedBox;
-        PatchPanel targetPanel;
-        PatchLine selectedLine;        
+        PatchBox selectedBox;           //currently selected box
+        PatchLine selectedLine;         //currently select line
 
-        Point newBoxOrg;
+        Point newBoxOrg;                //point on canvas where first new box is placed
+        Point newBoxOfs;                //offset of next new box is placed
+        Point newBoxPos;                //point where next new box is placed
 
         bool dragging;
         Point dragOrg;
         Point dragOfs;
 
         bool connecting;
-        PatchLine connectLine;
+        Point connectLineStart;
+        Point connectLineEnd;
+        PatchPanel sourcePanel;
+        PatchPanel targetPanel;
+
+        bool tracking;
+        PatchPanel trackingPanel;
 
         //cons
         public PatchCanvas(IPatchView _patchwin)
@@ -57,18 +63,23 @@ namespace Transonic.Patch
             lineList = new List<PatchLine>();
 
             newBoxOrg = new Point(50, 50);
+            newBoxOfs = new Point(20, 20);
+            newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);
 
-            this.BackColor = Color.FromArgb(0xF2, 0x85, 0x00);
+            this.BackColor = Color.FromArgb(0xFF, 0x75, 0x00);
             this.DoubleBuffered = true;
 
-            dragging = false;
-            connecting = false;
-            selectedBox = null;
-            targetPanel = null;
+            selectedBox = null;             //selecting
             selectedLine = null;
+            dragging = false;               //dragging
+            connecting = false;             //connecting
+            sourcePanel = null;
+            targetPanel = null;
+            tracking = false;
+            trackingPanel = null;
         }
 
-//- patch methods -------------------------------------------------------------
+//- patch management ----------------------------------------------------------
 
         public void clearPatch()
         {
@@ -88,7 +99,7 @@ namespace Transonic.Patch
 
             PatchBox.boxCount = 0;
             PatchPanel.panelCount = 0;
-            newBoxOrg = new Point(50, 50);
+            newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);            
         }
 
         public void loadPatch(String patchFileName)
@@ -164,11 +175,11 @@ namespace Transonic.Patch
         public void addPatchBox(PatchBox box)
         {
             box.canvas = this;
-            box.setPos(newBoxOrg);
-            newBoxOrg.Offset(20, 20);
+            box.setPos(newBoxPos);
+            newBoxPos.Offset(newBoxOfs);
             if (!this.ClientRectangle.Contains(newBoxOrg))
             {
-                newBoxOrg = new Point(50, 50);      //if we've gone outside the canvas, reset to original new box pos
+                newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);      //if we've gone outside the canvas, reset to original new box pos
             }
             boxList.Add(box);
             Invalidate();
@@ -206,7 +217,7 @@ namespace Transonic.Patch
             }
             if (selectedLine != null)
             {
-                selectedLine.setSelected(false);
+                selectedLine.Selected = false;
                 selectedLine = null;
             }
         }
@@ -237,12 +248,10 @@ namespace Transonic.Patch
 
 //- line methods ---------------------------------------------------------------
 
-        public void addPatchLine(PatchLine line)
+        public void addPatchLine(PatchPanel source, PatchPanel dest)
         {
-            line.connectDestJack(targetPanel);              //connect line to target box and input & output units in model
-            targetPanel.patchbox.setTargeted(false);
-            targetPanel = null;
-            Invalidate();
+            PatchLine line = new PatchLine(this, source, dest);         //create new line & connect it to source & dest panels
+            lineList.Add(line);                                         //add to canvas
         }
 
         public void loadPatchLine(XmlNode lineNode)
@@ -266,7 +275,7 @@ namespace Transonic.Patch
         {
             deselectCurrentSelection();
             selectedLine = line;                 //mark line as selected for future operations
-            selectedLine.setSelected(true);      //and let it know it
+            selectedLine.Selected = true;        //and let it know it
             Invalidate();
         }
 
@@ -314,9 +323,19 @@ namespace Transonic.Patch
                     else
                     {
                         PatchPanel panel = selectedBox.panelHitTest(e.Location);
-                        if (panel != null && panel.canConnectOut())                 //if we clicked on out jack panel
+                        if (panel != null)
                         {
-                            startConnection(panel, e.Location);
+                            if (panel.canConnectOut())                 //if we clicked on out jack panel
+                            {
+                                startConnection(panel, e.Location);
+                            }
+                            else if (panel.canTrackMouse())             //if we clicked on a panel that tracks mouse input
+                            {
+                                tracking = true;
+                                trackingPanel = panel;
+                                trackingPanel.onMouseDown(e.Location);
+                                Invalidate();
+                            }
                         }
                     }
                 }
@@ -341,6 +360,12 @@ namespace Transonic.Patch
             {
                 moveConnection(e.Location);
             }
+
+            if (tracking)
+            {
+                trackingPanel.onMouseMove(e.Location);
+                Invalidate();
+            }
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
@@ -355,12 +380,20 @@ namespace Transonic.Patch
             {
                 finishConnection(e.Location);
             }
+
+            if (tracking)
+            {
+                trackingPanel.onMouseUp(e.Location);
+                trackingPanel = null;
+                tracking = false;
+                Invalidate();
+            }
         }
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
             base.OnMouseClick(e);
-            if (selectedBox != null && !dragging)
+            if (selectedBox != null && !dragging && !tracking)
             {
                 PatchPanel panel = selectedBox.panelHitTest(e.Location);
                 if (panel != null)
@@ -455,14 +488,16 @@ namespace Transonic.Patch
         public void startConnection(PatchPanel panel, Point p)
         {
             connecting = true;
-            connectLine = new PatchLine(this, panel, p);      //create new line & connect output end to selected box
-            lineList.Add(connectLine);                        //add to canvas
+            sourcePanel = panel;
+            connectLineStart = sourcePanel.ConnectionPoint;
+            connectLineEnd = p;
             targetPanel = null;
+            Invalidate();
         }
 
         public void moveConnection(Point p)
         {
-            connectLine.setDestEndPos(p);         //move line
+            connectLineEnd = p;
             
             //check if currently over a possible target box
             bool handled = false;
@@ -503,14 +538,15 @@ namespace Transonic.Patch
         {
             if (targetPanel != null)                              //drop connection on target box we are currently over
             {
-                addPatchLine(connectLine);
+                addPatchLine(sourcePanel, targetPanel);
+                targetPanel.patchbox.setTargeted(false);
             }
-            else            //not over a target box, delete patch line
-            {
-                removePatchLine(connectLine);                
-            }
-            connectLine = null;
+
+            targetPanel = null;
+            sourcePanel = null;
             connecting = false;
+
+            Invalidate();
         }
         
 //- painting ------------------------------------------------------------------
@@ -531,7 +567,15 @@ namespace Transonic.Patch
             {
                 lineList[i].paint(g);
             }
+            if (connecting)
+            {
+                g.DrawLine(Pens.Red, connectLineStart, connectLineEnd);
+            }
         }
+    }
+
+    public class PatchLoadException : Exception
+    {
     }
 }
 

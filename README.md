@@ -1,2 +1,2 @@
 # libTransPatch
-library for routing signals using a graphical unser interface
+library for routing signals using a graphical user interface

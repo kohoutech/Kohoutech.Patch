@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
 Transonic Patch Library
-Copyright (C) 1995-2017  George E Greaney
+Copyright (C) 1995-2019  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -22,9 +22,43 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using Origami.ENAML;
+
+//interface for patch canvas communication with the window that owns it
+
 namespace Transonic.Patch
 {
     public interface IPatchView
     {
+        //allow the backing model to create a subclass of a patch box using the model data stored in palette item's tag field
+        PatchBox getPatchBox(PaletteItem item);
+
+        //allow the backing model to create a subclass of a patch wire & connect it to source & dest units in the model
+        PatchWire getPatchWire(PatchPanel source, PatchPanel dest);
+
+        //removes unit from backing model's patch graph
+        void removePatchBox(PatchBox box);
+
+        //allows the backing model to disconnect two units
+        void removePatchWire(PatchWire wire);
+
+        //load model specific data from the patch file stored in ENAML format
+        void loadPatchData(EnamlData data);
+
+        PatchBox loadPatchBox(EnamlData data, String path);
+
+        PatchWire loadPatchWire(EnamlData data, String path, PatchPanel source, PatchPanel dest);
+
+        //save model specific data to the patch file stored in ENAML format
+        void savePatchData(EnamlData data);
+
+        //save model specific box subclass to patch file
+        void savePatchBox(EnamlData data, String path, PatchBox box);
+
+        //save model specific wire subclass to patch file
+        void savePatchWire(EnamlData data, String path, PatchWire wire);
+
+        //let the owner window know the patch has changed
+        void patchHasChanged();
     }
 }

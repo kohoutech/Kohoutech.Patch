@@ -1,6 +1,6 @@
 ﻿/* ----------------------------------------------------------------------------
 Transonic Patch Library
-Copyright (C) 1995-2017  George E Greaney
+Copyright (C) 1995-2019  George E Greaney
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -31,9 +31,9 @@ using System.Xml;
 
 namespace Transonic.Patch
 {
-    public interface iPatchConnector
+    public interface IPatchConnector
     {
-        void setLine(PatchLine line);       //link the patch line view to the model's connector
+        void setLine(PatchWire line);       //link the patch line view to the model's connector
 
         //single clicks select the patch line, so they aren't passed to the model's connector
 

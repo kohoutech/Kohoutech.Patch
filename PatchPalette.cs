@@ -23,8 +23,6 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Drawing;
-using System.Xml;
-using System.Xml.Serialization;
 using System.Drawing.Drawing2D;
 
 namespace Transonic.Patch

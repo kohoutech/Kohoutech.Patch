@@ -23,8 +23,6 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Drawing;
-using System.Xml;
-using System.Xml.Serialization;
 using System.Drawing.Drawing2D;
 
 using Origami.ENAML;
@@ -33,7 +31,7 @@ namespace Transonic.Patch
 {
     public class PatchCanvas : Control
     {
-        public IPatchView patchwin;         //the window that holds this canvas
+        public IPatchModel patchModel;         //the canvas' backing model
         public PatchPalette palette;
 
         List<PatchBox> boxList;             //the boxes on the canvas
@@ -61,9 +59,9 @@ namespace Transonic.Patch
         PatchPanel trackingPanel;
 
         //cons
-        public PatchCanvas(IPatchView _patchwin)
+        public PatchCanvas(IPatchModel _patchwin)
         {
-            patchwin = _patchwin;
+            patchModel = _patchwin;
 
             palette = new PatchPalette(this);
             palette.Location = new Point(this.ClientRectangle.Left, this.ClientRectangle.Top);
@@ -141,7 +139,7 @@ namespace Transonic.Patch
 
         public void handlePaletteItemDoubleClick(PaletteItem item)
         {
-            PatchBox newBox = patchwin.getPatchBox(item);
+            PatchBox newBox = patchModel.getPatchBox(item);
             addPatchBox(newBox);
         }
 
@@ -162,6 +160,8 @@ namespace Transonic.Patch
             {
                 removePatchBox(box, false);
             }
+
+            patchModel.patchHasBeenCleared();
 
             newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);
         }
@@ -185,7 +185,7 @@ namespace Transonic.Patch
             box.setPos(new Point(xpos, ypos));
             boxList.Add(box);
             zList.Add(box);
-            patchwin.patchHasChanged();
+            patchModel.patchHasChanged();
             Invalidate();
         }
 
@@ -196,12 +196,12 @@ namespace Transonic.Patch
             {
                 removePatchWire(wire, false);           //remove all connections first
             }
-            patchwin.removePatchBox(box);               //delete box's model
+            patchModel.removePatchBox(box);               //delete box's model
             boxList.Remove(box);                        //and remove box from canvas            
             zList.Remove(box);
             if (notify)
             {
-                patchwin.patchHasChanged();
+                patchModel.patchHasChanged();
             }
             Invalidate();
         }
@@ -249,20 +249,20 @@ namespace Transonic.Patch
             wire.canvas = this;
             wireList.Add(wire);                                      //add to canvas
             zList.Add(wire);
-            patchwin.patchHasChanged();
+            patchModel.patchHasChanged();
             Invalidate();
         }
 
         //patch wire will be connected to source jack, but may or may not be connected to dest jack
         public void removePatchWire(PatchWire wire, bool notify)
         {
-            patchwin.removePatchWire(wire);             //delete wire's model
+            patchModel.removePatchWire(wire);             //delete wire's model
             wire.disconnect();                          //and disconnect wire from source & dest jacks
             wireList.Remove(wire);
             zList.Remove(wire);
             if (notify)
             {
-                patchwin.patchHasChanged();
+                patchModel.patchHasChanged();
             }
             Invalidate();
         }
@@ -540,7 +540,7 @@ namespace Transonic.Patch
             if (targetPanel != null)                              //drop connection on target box we are currently over
             {
                 targetPanel.patchbox.setTargeted(false);
-                PatchWire newWire = patchwin.getPatchWire(sourcePanel, targetPanel);    //create new wire & connect it to source & dest panels
+                PatchWire newWire = patchModel.getPatchWire(sourcePanel, targetPanel);    //create new wire & connect it to source & dest panels
                 addPatchWire(newWire);
             }
 
@@ -588,7 +588,7 @@ namespace Transonic.Patch
 
             EnamlData data = EnamlData.loadFromFile(patchFilename);
 
-            patchwin.loadPatchData(data);       //load model specific data from the patch file
+            patchModel.loadPatchData(data);       //load model specific data from the patch file
 
             //temporary dict for mapping a name to its patch box after it's been added to the canvas
             Dictionary<String, PatchBox> boxDict = new Dictionary<string, PatchBox>();
@@ -597,7 +597,7 @@ namespace Transonic.Patch
             foreach (String boxName in boxList)
             {
                 String boxPath = "boxes." + boxName;
-                PatchBox newBox = patchwin.loadPatchBox(data, boxPath);
+                PatchBox newBox = patchModel.loadPatchBox(data, boxPath);
                 int xpos = data.getIntValue(boxPath + ".x-pos", 0);
                 int ypos = data.getIntValue(boxPath + ".y-pos", 0);
                 addPatchBox(newBox, xpos, ypos);
@@ -619,7 +619,7 @@ namespace Transonic.Patch
                 PatchPanel destPanel = destBox.getPanel(destPanelName);
 
                 //create new wire & connect it to source & dest panels
-                PatchWire newWire = patchwin.loadPatchWire(data, wirePath, srcPanel, destPanel);    
+                PatchWire newWire = patchModel.loadPatchWire(data, wirePath, srcPanel, destPanel);    
                 addPatchWire(newWire);
             }
         }
@@ -628,13 +628,13 @@ namespace Transonic.Patch
         {
             EnamlData data = new EnamlData();
 
-            patchwin.savePatchData(data);       //store model specific data from the patch file
+            patchModel.savePatchData(data);       //store model specific data from the patch file
 
             int count = 1;
             foreach (PatchBox box in boxList)
             {
                 String boxPath = "boxes.box-" + count.ToString().PadLeft(3, '0');
-                patchwin.savePatchBox(data, boxPath, box);
+                patchModel.savePatchBox(data, boxPath, box);
                 data.setIntValue(boxPath + ".x-pos", box.getPos().X);
                 data.setIntValue(boxPath + ".y-pos", box.getPos().Y);
                 count++;
@@ -644,7 +644,7 @@ namespace Transonic.Patch
             foreach (PatchWire wire in wireList)
             {
                 String wirePath = "wires.wire-" + count.ToString().PadLeft(3, '0');
-                patchwin.savePatchWire(data, wirePath, wire);
+                patchModel.savePatchWire(data, wirePath, wire);
                 data.setStringValue(wirePath + ".source-box", wire.srcPanel.patchbox.title);
                 data.setStringValue(wirePath + ".source-panel", wire.srcPanel.panelName);
                 data.setStringValue(wirePath + ".dest-box", wire.destPanel.patchbox.title);

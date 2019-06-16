@@ -24,11 +24,11 @@ using System.Text;
 
 using Origami.ENAML;
 
-//interface for patch canvas communication with the window that owns it
+//interface for patch canvas communication with it's backing model
 
 namespace Transonic.Patch
 {
-    public interface IPatchView
+    public interface IPatchModel
     {
         //allow the backing model to create a subclass of a patch box using the model data stored in palette item's tag field
         PatchBox getPatchBox(PaletteItem item);
@@ -41,6 +41,8 @@ namespace Transonic.Patch
 
         //allows the backing model to disconnect two units
         void removePatchWire(PatchWire wire);
+
+        //- loading/saving to patch files -------------------------------------
 
         //load model specific data from the patch file stored in ENAML format
         void loadPatchData(EnamlData data);
@@ -58,7 +60,11 @@ namespace Transonic.Patch
         //save model specific wire subclass to patch file
         void savePatchWire(EnamlData data, String path, PatchWire wire);
 
-        //let the owner window know the patch has changed
+        //let the model know the patch has changed
         void patchHasChanged();
+
+        //let the model know the patch has been cleared
+        void patchHasBeenCleared();
+
     }
 }

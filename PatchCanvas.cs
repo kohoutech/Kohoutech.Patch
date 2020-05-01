@@ -144,6 +144,8 @@ namespace Transonic.Patch
             palette.enableItem(itemName, false);
         }
 
+        //dbl clicking on palette item gets a new model box from the model from the model name associated with the palette item
+        //a new patch box is created from this model box & added to the canvas
         internal void handlePaletteItemDoubleClick(String modelName)
         {
             iPatchBox newBox = patchModel.getPatchBox(modelName);
@@ -167,8 +169,6 @@ namespace Transonic.Patch
             {
                 removePatchBox(box);
             }
-
-            //patchModel.patchHasBeenCleared();
 
             newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);
         }
@@ -203,7 +203,7 @@ namespace Transonic.Patch
             {
                 removePatchWire(wire);                  //remove all connections first
             }
-            box.remove(box);                            //remove box's model from patch
+            box.remove();                               //tell box to remove its model from patch
             boxList.Remove(box);                        //and remove box from canvas            
             zList.Remove(box);
             Invalidate();
@@ -487,7 +487,7 @@ namespace Transonic.Patch
         {
             connecting = true;
             sourcePanel = panel;
-            connectWireStart = sourcePanel.ConnectionPoint;
+            connectWireStart = sourcePanel.ConnectionPoint();
             connectWireEnd = p;
             targetPanel = null;
             Invalidate();
@@ -537,7 +537,10 @@ namespace Transonic.Patch
             if (targetPanel != null)                              //drop connection on target box we are currently over
             {
                 targetPanel.patchbox.setTargeted(false);
-                PatchWire newWire = new PatchWire(sourcePanel, targetPanel);    //create new wire & connect it to source & dest panels
+
+                //create new wire & connect it to source & dest panels
+                iPatchWire wireModel = patchModel.getPatchWire(sourcePanel.model, targetPanel.model);
+                PatchWire newWire = new PatchWire(sourcePanel, targetPanel, wireModel);    
                 addPatchWire(newWire);
             }
 
@@ -587,12 +590,6 @@ namespace Transonic.Patch
 
         //allow the backing model to create a patch wire model and connect it to source & dest panels in the model
         iPatchWire getPatchWire(iPatchPanel source, iPatchPanel dest);
-
-        //removes unit from backing model's patch graph
-        void removePatchBox(iPatchBox box);
-
-        //allows the backing model to disconnect two units
-        void removePatchWire(iPatchWire wire);
     }
 }
 

@@ -1,5 +1,5 @@
 ﻿/* ----------------------------------------------------------------------------
-Transonic Patch Library
+Kohoutech Patch Library
 Copyright (C) 1995-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 
-namespace Transonic.Patch
+namespace Kohoutech.Patch
 {
     public class PatchCanvas : Control
     {
@@ -34,6 +34,7 @@ namespace Transonic.Patch
 
         List<PatchBox> boxList;             //the boxes on the canvas
         List<PatchWire> wireList;           //the wires on the canvas
+
         List<Object> zList;                 //z-order for painting boxes & wires
 
         PatchBox selectedBox;           //currently selected box
@@ -148,11 +149,18 @@ namespace Transonic.Patch
         //a new patch box is created from this model box & added to the canvas
         internal void handlePaletteItemDoubleClick(String modelName)
         {
-            iPatchBox newBox = patchModel.getPatchBox(modelName);
+            IPatchBox newBox = patchModel.getPatchBox(modelName);
             addPatchBox(newBox);
         }
 
         //- patch management ----------------------------------------------------------
+
+        public void setPatch(IPatchModel patch)
+        {
+            clearPatch();                   //remove boxes & wires from old model first
+            patchModel = patch;             //set new model
+            patch.setCanvas(this);          //connect canvas to model so model can update canvas when it changes
+        }
 
         public void clearPatch()
         {
@@ -176,7 +184,7 @@ namespace Transonic.Patch
         //- box methods ---------------------------------------------------------------
 
         //add a patch box at default location on canvas
-        public void addPatchBox(iPatchBox boxModel)
+        public void addPatchBox(IPatchBox boxModel)
         {
             addPatchBox(boxModel, newBoxPos.X, newBoxPos.Y);
             newBoxPos.Offset(newBoxOfs);
@@ -186,7 +194,7 @@ namespace Transonic.Patch
             }
         }
 
-        public void addPatchBox(iPatchBox boxModel, int xpos, int ypos)
+        public void addPatchBox(IPatchBox boxModel, int xpos, int ypos)
         {
             PatchBox box = new PatchBox(boxModel);
             box.canvas = this;
@@ -292,10 +300,10 @@ namespace Transonic.Patch
             for (int i = zList.Count - 1; i >= 0; i--)
             {
                 object obj = zList[i];
-                if (obj is PatchWire)
+                if (obj is PatchWire)                       
                 {
                     PatchWire wire = (PatchWire)obj;
-                    if (wire.hitTest(e.Location))
+                    if (wire.hitTest(e.Location))           //clicked on a wire
                     {
                         selectPatchWire(wire);
                         handled = true;
@@ -306,7 +314,7 @@ namespace Transonic.Patch
                 if (!handled && obj is PatchBox)
                 {
                     PatchBox box = (PatchBox)obj;
-                    if (box.hitTest(e.Location))
+                    if (box.hitTest(e.Location))            //clicked on a box
                     {
                         selectPatchBox(box);
 
@@ -389,6 +397,7 @@ namespace Transonic.Patch
             }
         }
 
+        //this will ONLY be called if the panel we clicked on is NOT tracking the mouse
         protected override void OnMouseClick(MouseEventArgs e)
         {
             base.OnMouseClick(e);
@@ -539,7 +548,7 @@ namespace Transonic.Patch
                 targetPanel.patchbox.setTargeted(false);
 
                 //create new wire & connect it to source & dest panels
-                iPatchWire wireModel = patchModel.getPatchWire(sourcePanel.model, targetPanel.model);
+                IPatchWire wireModel = patchModel.getPatchWire(sourcePanel.model, targetPanel.model);
                 PatchWire newWire = new PatchWire(sourcePanel, targetPanel, wireModel);    
                 addPatchWire(newWire);
             }
@@ -585,11 +594,14 @@ namespace Transonic.Patch
 
     public interface IPatchModel
     {
+        //allow the model to invalidate the canvas when the canvas should reflect changes in the model
+        void setCanvas(PatchCanvas canvas);
+
         //allow the backing model to create a patch unit using the model name stored in palette item's tag field
-        iPatchBox getPatchBox(String modelName);
+        IPatchBox getPatchBox(String modelName);
 
         //allow the backing model to create a patch wire model and connect it to source & dest panels in the model
-        iPatchWire getPatchWire(iPatchPanel source, iPatchPanel dest);
+        IPatchWire getPatchWire(IPatchPanel source, IPatchPanel dest);
     }
 }
 

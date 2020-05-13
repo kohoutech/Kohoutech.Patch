@@ -1,5 +1,5 @@
 ﻿/* ----------------------------------------------------------------------------
-Transonic Patch Library
+Kohoutech Patch Library
 Copyright (C) 1995-2020  George E Greaney
 
 This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ using System.Text;
 using System.Drawing;
 using System.Xml;
 
-namespace Transonic.Patch
+namespace Kohoutech.Patch
 {
     public class PatchPanel
     {
@@ -40,15 +40,15 @@ namespace Transonic.Patch
         public PatchBox patchbox;
         public List<PatchWire> wires;
         public CONNECTIONTYPE connType;
-        public Point connectionPoint;
+        public Point connectionPoint;           
 
         public Rectangle frame;
         public int frameWidth;
         public int frameHeight;
 
-        public iPatchPanel model;
+        public IPatchPanel model;
 
-        public PatchPanel(PatchBox box, iPatchPanel _model)
+        public PatchPanel(PatchBox box, IPatchPanel _model)
         {
             patchbox = box;
             model = _model;
@@ -70,8 +70,11 @@ namespace Transonic.Patch
 
         public void setPos(int xOfs, int yOfs)
         {
+            //move frame & connection point
             frame.Offset(xOfs, yOfs);
-            foreach(PatchWire connector in wires)
+            connectionPoint.Offset(xOfs, yOfs);
+
+            foreach (PatchWire connector in wires)
             {
                 if (connType == CONNECTIONTYPE.SOURCE)
                 {
@@ -101,7 +104,6 @@ namespace Transonic.Patch
             return (connType == CONNECTIONTYPE.SOURCE);
         }
 
-        //default connection point - dead center of the frame
         public Point ConnectionPoint()
         {
             return connectionPoint;
@@ -164,13 +166,13 @@ namespace Transonic.Patch
         public void paint(Graphics g)
         {
             g.DrawRectangle(Pens.Black, frame);
-            model.paint(g);
+            model.paint(g, frame);
         }
     }
 
     //- model interface -------------------------------------------------------
 
-    public interface iPatchPanel
+    public interface IPatchPanel
     {
         //get panel's name from model
         string getName();
@@ -184,7 +186,8 @@ namespace Transonic.Patch
         //get pos of connection on panel from model
         Point connectionPoint();
 
-        //can the panel track the mosue movements?
+        //return true to respond to mousedown / mousemove / mouseup events
+        //return false to respond to mouseclick events
         bool canTrackMouse();
 
         //handle mouse down events
@@ -206,7 +209,7 @@ namespace Transonic.Patch
         void doubleClick(Point pos);
 
         //paint the panel's display inside it's frame
-        void paint(Graphics g);
+        void paint(Graphics g, Rectangle frame);
     }
 }
 

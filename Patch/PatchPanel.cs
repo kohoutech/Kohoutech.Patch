@@ -28,12 +28,7 @@ namespace Kohoutech.Patch
 {
     public class PatchPanel
     {
-        public enum CONNECTIONTYPE 
-        {
-            SOURCE,
-            DEST,
-            NEITHER
-        }
+        public enum CONNECTIONTYPE { SOURCE, DEST, NEITHER }
 
         public String panelName;
 
@@ -92,11 +87,15 @@ namespace Kohoutech.Patch
             return (frame.Contains(p));
         }
 
-//- connections ---------------------------------------------------------------
+        //- connections ---------------------------------------------------------------
 
-        public bool canConnectIn()
+        public bool canConnectIn(PatchPanel source)
         {
-            return (connType == CONNECTIONTYPE.DEST);
+            if (connType == CONNECTIONTYPE.DEST)
+            {
+                return model.canConnectIn(source.model);
+            }
+            return false;
         }
 
         public bool canConnectOut()
@@ -180,11 +179,14 @@ namespace Kohoutech.Patch
         //get panel height from model
         int getHeight();
 
-        //get penel type (source, dest, neither) from model
+        //get panel type (source, dest, neither) from model
         PatchPanel.CONNECTIONTYPE getConnType();
 
         //get pos of connection on panel from model
         Point connectionPoint();
+
+        //ask the model if the connection source can connect to it
+        bool canConnectIn(IPatchPanel source);
 
         //return true to respond to mousedown / mousemove / mouseup events
         //return false to respond to mouseclick events

@@ -58,9 +58,9 @@ namespace Kohoutech.Patch
         PatchPanel trackingPanel;
 
         //cons
-        public PatchCanvas()
+        public PatchCanvas(IPatchModel _patchModel)
         {
-            patchModel = null;
+            patchModel = _patchModel;
 
             palette = new PatchPalette(this);
             palette.Location = new Point(this.ClientRectangle.Left, this.ClientRectangle.Top);
@@ -79,14 +79,14 @@ namespace Kohoutech.Patch
             newBoxPos = new Point(newBoxOrg.X, newBoxOrg.Y);
 
             //init canvas state
-            selectedBox = null;             //selecting
+            selectedBox = null;             //nothing selected yet
             selectedWire = null;
-            dragging = false;               //dragging
-            connecting = false;             //connecting
-            sourcePanel = null;
-            targetPanel = null;
+            dragging = false;               //not dragging
             tracking = false;
             trackingPanel = null;
+            connecting = false;             //not connecting
+            sourcePanel = null;
+            targetPanel = null;
         }
 
         protected override void OnResize(EventArgs e)
@@ -155,23 +155,18 @@ namespace Kohoutech.Patch
 
         //- patch management ----------------------------------------------------------
 
-        public void setPatch(IPatchModel patch)
-        {
-            clearPatch();                   //remove boxes & wires from old model first
-            patchModel = patch;             //set new model
-            patch.setCanvas(this);          //connect canvas to model so model can update canvas when it changes
-        }
-
+        //removes are the boxes & wires from the canvas which will
+        //in turn remove the matching boxes & wires from the model
         public void clearPatch()
         {
-            //connections
+            //connections - remove the wires first
             List<PatchWire> delWireList = new List<PatchWire>(wireList);
             foreach (PatchWire wire in delWireList)
             {
                 removePatchWire(wire);
             }
 
-            //boxes
+            //then remove all the boxes
             List<PatchBox> delboxList = new List<PatchBox>(boxList);
             foreach (PatchBox box in delboxList)
             {
@@ -300,7 +295,7 @@ namespace Kohoutech.Patch
             for (int i = zList.Count - 1; i >= 0; i--)
             {
                 object obj = zList[i];
-                if (obj is PatchWire)                       
+                if (obj is PatchWire)
                 {
                     PatchWire wire = (PatchWire)obj;
                     if (wire.hitTest(e.Location))           //clicked on a wire
@@ -483,8 +478,10 @@ namespace Kohoutech.Patch
             Invalidate();
         }
 
+        //we've finished a drag, let the model know the layout has changed
         private void endDrag(Point p)
         {
+            patchModel.layoutHasChanged();
             dragging = false;
         }
 
@@ -516,7 +513,7 @@ namespace Kohoutech.Patch
                     if (box != selectedBox)         //check selected box in case another box is under it, but don't connect to itself
                     {
                         PatchPanel panel = box.panelHitTest(p);
-                        if (panel != null && panel.canConnectIn() && !panel.isConnected())
+                        if (panel != null && !panel.isConnected() && panel.canConnectIn(sourcePanel))
                         {
                             if (targetPanel != null)
                             {
@@ -549,7 +546,7 @@ namespace Kohoutech.Patch
 
                 //create new wire & connect it to source & dest panels
                 IPatchWire wireModel = patchModel.getPatchWire(sourcePanel.model, targetPanel.model);
-                PatchWire newWire = new PatchWire(sourcePanel, targetPanel, wireModel);    
+                PatchWire newWire = new PatchWire(sourcePanel, targetPanel, wireModel);
                 addPatchWire(newWire);
             }
 
@@ -559,6 +556,13 @@ namespace Kohoutech.Patch
         }
 
         //- painting ------------------------------------------------------------------
+
+        //if the backing model changes due to an internal action and the canvas
+        //needs to be redrawn to reflect this
+        public void redraw()
+        {
+            Invalidate();
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -595,13 +599,16 @@ namespace Kohoutech.Patch
     public interface IPatchModel
     {
         //allow the model to invalidate the canvas when the canvas should reflect changes in the model
-        void setCanvas(PatchCanvas canvas);
+        //        void setCanvas(PatchCanvas canvas);
 
         //allow the backing model to create a patch unit using the model name stored in palette item's tag field
         IPatchBox getPatchBox(String modelName);
 
         //allow the backing model to create a patch wire model and connect it to source & dest panels in the model
         IPatchWire getPatchWire(IPatchPanel source, IPatchPanel dest);
+
+        //notify the model that the box/wire layout has changed if it needs to act on this
+        void layoutHasChanged();
     }
 }
 
